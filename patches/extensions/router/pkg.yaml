@@ -1,0 +1,56 @@
+# Overlaid onto a siderolabs/extensions checkout (see Makefile's checkout-extensions
+# target) at router/pkg.yaml. No kernel module involved - router is pure userspace (the
+# `router` binary supervising a bundled `bird`/`birdc`), so unlike ../talos-awg-extension
+# this package has no `dependencies: [image: ...]` on anything from ../talos-kernel at
+# all - it's fully independent of that repo.
+#
+# BIRD itself is built from source here rather than reusing siderolabs/extensions' own
+# network/bird2 package, because bird2 configures `--disable-client` (no birdc) and our
+# router daemon needs both (see ../talos-extensions/router/src/birdc.rs) - this is the
+# same source/version/build recipe as bird2/pkg.yaml, just without that one flag, so bird
+# and birdc land side by side. BIRD_VERSION/SHA256/SHA512 come in as --build-arg (see
+# Makefile), same convention as amneziawg-pkg's AWG_REF in ../talos-kernel.
+name: router
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - stage: base
+steps:
+  - sources:
+      - url: "https://gitlab.nic.cz/labs/bird/-/archive/v{{ .BUILD_ARG_BIRD_VERSION }}/bird-v{{ .BUILD_ARG_BIRD_VERSION }}.tar.gz"
+        destination: bird.tar.gz
+        sha256: "{{ .BUILD_ARG_BIRD_SHA256 }}"
+        sha512: "{{ .BUILD_ARG_BIRD_SHA512 }}"
+    prepare:
+      - |
+        tar -xf bird.tar.gz --strip-components=1
+      - |
+        autoreconf -fi
+
+        export CFLAGS="${CFLAGS} -I/usr/local/include -static"
+        export LDFLAGS="${LDFLAGS} -static"
+
+        ./configure --prefix=/usr/local
+    build:
+      - |
+        make -j $(nproc) all
+    install:
+      - |
+        mkdir -p /rootfs/usr/local/lib/containers/router
+        cp bird/bird /rootfs/usr/local/lib/containers/router/bird
+        cp client/birdc /rootfs/usr/local/lib/containers/router/birdc
+
+        install -m 0755 /pkg/router-bin /rootfs/usr/local/lib/containers/router/router
+        mkdir -p /rootfs/usr/local/etc/containers
+        cp /pkg/router-service.yaml /rootfs/usr/local/etc/containers/router.yaml
+    test:
+      - |
+        mkdir -p /extensions-validator-rootfs
+        cp -r /rootfs/ /extensions-validator-rootfs/rootfs
+        cp /pkg/manifest.yaml /extensions-validator-rootfs/manifest.yaml
+        /extensions-validator validate --rootfs=/extensions-validator-rootfs --pkg-name="${PKG_NAME}"
+finalize:
+  - from: /rootfs
+    to: /rootfs
+  - from: /pkg/manifest.yaml
+    to: /
