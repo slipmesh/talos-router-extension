@@ -95,11 +95,18 @@ agents: ## Cross-compile the router extension-service daemon (../talos-extension
 	@echo "==> cross-compiling router for $(TARGET_ARCH) ($(AGENT_RUST_TARGET))"
 	@(cd $(AGENTS_DIR) && cargo zigbuild --release --target $(AGENT_RUST_TARGET) -p router)
 
-# BIRD_VERSION/TALOS_VERSION alone are not enough to make this version string unique -
-# router's own behavior changes on ../talos-extensions commits that don't touch either
-# pin (its git SHA is included so a rebuild after fixing something there is never
-# mistaken for a repeat of an earlier build under some cache, anywhere in the pipeline).
-EXT_VERSION := $(BIRD_VERSION)-$(TALOS_VERSION)-$(AGENTS_SHA)
+# Field order here is load-bearing, not stylistic: siderolabs' own extensions-validator
+# (cmd/extensions-validator/cmd/validate.go) only accepts a handful of exact version
+# shapes via regex, and the one that fits a hash + a Talos version + extra free-form
+# text is `^([0-9a-f]+)-v(\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?)...$` - a
+# lowercase-hex token, then literal "-v", then TALOS_VERSION's own X.Y.Z, with anything
+# else (BIRD_VERSION here) only valid as a further "-"-prefixed suffix *after* that,
+# folded into the semver prerelease part. AGENTS_SHA has to come first for exactly this
+# reason (confirmed the hard way: BIRD_VERSION-TALOS_VERSION-AGENTS_SHA and
+# bird+BIRD_VERSION-TALOS_VERSION-AGENTS_SHA both rejected with "invalid version format" -
+# same regex talos-awg-extension's own EXT_VERSION already satisfies by luck of field
+# order, not by design there either).
+EXT_VERSION := $(AGENTS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
 
 BIRD_ARGS := --build-arg=BIRD_VERSION=$(BIRD_VERSION) --build-arg=BIRD_SHA256=$(BIRD_SHA256) --build-arg=BIRD_SHA512=$(BIRD_SHA512)
 

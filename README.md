@@ -2,9 +2,9 @@
 
 Packages the **router** Talos system extension - a daemon (`../talos-extensions/router`)
 that renders BIRD config (OSPFv3 over mesh links, full-mesh iBGP over loopbacks) and
-resolves bypass-route prefixes from a static config file, supervising a bundled
-`bird`/`birdc`. No kernel module involved - pure userspace, fully independent of
-`../talos-kernel`.
+resolves bypass-route prefixes from a static config file, supervising a bundled `bird`
+(talking to it over BIRD's own control socket directly - no `birdc` CLI binary needed).
+No kernel module involved - pure userspace, fully independent of `../talos-kernel`.
 
 Builds with **Docker** (`docker buildx`), on any machine, for any target architecture.
 
@@ -24,10 +24,12 @@ doesn't need `talos-kernel` built first - `preflight` has no dependency-image ch
 
 Same mechanism `talos-awg-extension` uses for packaging (siderolabs/extensions'
 `pkg.yaml`/`bldr` pipeline), just without a kernel-module dependency step. BIRD is built
-from source as part of `patches/extensions/router/pkg.yaml` - not reused from
-siderolabs/extensions' own `network/bird2` package, because that package configures
-`--disable-client` (no `birdc`) and the `router` daemon needs both `bird` and `birdc` -
-see the comment at the top of that file for the exact reasoning and pin provenance.
+from source as part of `patches/extensions/router/pkg.yaml` with the same
+`--disable-client` flag siderolabs/extensions' own `network/bird2` package uses - the
+`router` daemon doesn't need the `birdc` CLI tool at all (it's a from-scratch client for
+BIRD's control-socket wire protocol, see `../talos-extensions/router/src/birdc.rs`'s own
+doc comment), and `birdc` needs GNU Readline to build, which isn't otherwise available -
+see the comment at the top of that file for the full story and pin provenance.
 
 ```
 versions.env            every pin: Talos version, extensions commit, BIRD version, image
@@ -41,7 +43,7 @@ it from `versions.env` and `patches/` alone.
 
 The `router` binary itself lives in the sibling repo `../talos-extensions` and is
 cross-compiled by `make agents`, then handed to the `siderolabs/extensions` checkout for
-packaging alongside `bird`/`birdc` (part of `make extension`).
+packaging alongside `bird` (part of `make extension`).
 
 ## Cross-architecture
 
@@ -56,7 +58,7 @@ make extension TARGET_ARCH=arm64
 make print-config   # resolved pins, arch, image names
 make preflight       # docker/buildx/git/curl/cargo/cargo-zigbuild present
 make agents            # cross-compile router from ../talos-extensions
-make extension           # build bird/birdc + package with the router daemon (this arch)
+make extension           # build bird + package with the router daemon (this arch)
 make all                   # preflight -> extension
 ```
 
