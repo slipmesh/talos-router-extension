@@ -8,12 +8,13 @@ No kernel module involved - pure userspace, fully independent of `../talos-kerne
 
 Builds with **Docker** (`docker buildx`), on any machine, for any target architecture.
 
-## This is one of four repos
+## This is one of five repos
 
 ```
 talos-kernel                            -> signed kernel + amneziawg-pkg
 talos-awg-extension                     -> amneziawg system extension (pulls amneziawg-pkg)
 talos-router-extension     (this repo)  -> router system extension (no kernel dependency)
+talos-nftables-extension                -> nftables system extension (no kernel dependency)
 talos-installer                         -> assembles kernel + N extensions into an installer
 ```
 
