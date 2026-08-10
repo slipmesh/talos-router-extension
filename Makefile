@@ -3,7 +3,7 @@
 # own pkg.yaml/bldr pipeline. No kernel module - pure userspace, so unlike
 # ../talos-awg-extension this repo has no dependency on ../talos-kernel at all.
 #
-# One of four repos in a split pipeline - see README, "This is one of four repos".
+# One of five repos in a split pipeline - see README, "This is one of five repos".
 #
 # Needs Docker + `docker buildx` (siderolabs' real `bldr` toolchain, a custom BuildKit
 # frontend podman/buildah can't run).
