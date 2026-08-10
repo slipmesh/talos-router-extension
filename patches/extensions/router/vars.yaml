@@ -1,0 +1,3 @@
+# Passed straight through as --build-arg=VERSION=... (Makefile computes it as
+# $(BIRD_VERSION)-$(TALOS_VERSION)-$(AGENTS_SHA)), same scheme talos-awg-extension uses.
+VERSION: "{{ .BUILD_ARG_VERSION }}"

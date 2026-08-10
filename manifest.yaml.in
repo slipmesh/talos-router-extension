@@ -1,0 +1,13 @@
+version: v1alpha1
+metadata:
+  name: router
+  version: "@VERSION@"
+  author: seacat
+  description: |
+    BIRD-based OSPFv3/iBGP mesh routing for the slipmesh cluster - the `ext-router` extension
+    service that renders BIRD config (mesh OSPF interfaces, full-mesh iBGP, bypass-route
+    blackholing) and reloads it live from a static ExtensionServiceConfig, bundling a
+    prebuilt bird/birdc alongside it - see docs/extension-services.md.
+  compatibility:
+    talos:
+      version: ">= v1.10.0"
