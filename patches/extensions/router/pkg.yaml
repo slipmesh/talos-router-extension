@@ -1,15 +1,18 @@
 # Overlaid onto a siderolabs/extensions checkout (see Makefile's checkout-extensions
 # target) at router/pkg.yaml. No kernel module involved - router is pure userspace (the
-# `router` binary supervising a bundled `bird`/`birdc`), so unlike ../talos-awg-extension
-# this package has no `dependencies: [image: ...]` on anything from ../talos-kernel at
-# all - it's fully independent of that repo.
+# `router` binary supervising a bundled `bird`), so unlike ../talos-awg-extension this
+# package has no `dependencies: [image: ...]` on anything from ../talos-kernel at all -
+# it's fully independent of that repo.
 #
-# BIRD itself is built from source here rather than reusing siderolabs/extensions' own
-# network/bird2 package, because bird2 configures `--disable-client` (no birdc) and our
-# router daemon needs both (see ../talos-extensions/router/src/birdc.rs) - this is the
-# same source/version/build recipe as bird2/pkg.yaml, just without that one flag, so bird
-# and birdc land side by side. BIRD_VERSION/SHA256/SHA512 come in as --build-arg (see
-# Makefile), same convention as amneziawg-pkg's AWG_REF in ../talos-kernel.
+# BIRD is built from source here with the *same* `--disable-client` flag
+# siderolabs/extensions' own network/bird2 package uses - despite the module being named
+# `birdc.rs`, ../talos-extensions/router doesn't shell out to the `birdc` CLI binary at
+# all (see that file's own doc comment): it's a from-scratch client for BIRD's control-
+# socket wire protocol, talking to /run/bird.ctl directly over a Unix socket. So there's
+# no need to build the actual `birdc` tool (which needs GNU Readline - confirmed the hard
+# way: `configure` fails without either Readline or --disable-client) - only the `bird`
+# daemon binary itself. BIRD_VERSION/SHA256/SHA512 come in as --build-arg (see Makefile),
+# same convention as amneziawg-pkg's AWG_REF in ../talos-kernel.
 name: router
 variant: scratch
 shell: /bin/bash
@@ -30,15 +33,14 @@ steps:
         export CFLAGS="${CFLAGS} -I/usr/local/include -static"
         export LDFLAGS="${LDFLAGS} -static"
 
-        ./configure --prefix=/usr/local
+        ./configure --disable-client --prefix=/usr/local
     build:
       - |
         make -j $(nproc) all
     install:
       - |
         mkdir -p /rootfs/usr/local/lib/containers/router
-        cp bird/bird /rootfs/usr/local/lib/containers/router/bird
-        cp client/birdc /rootfs/usr/local/lib/containers/router/birdc
+        cp bird /rootfs/usr/local/lib/containers/router/bird
 
         install -m 0755 /pkg/router-bin /rootfs/usr/local/lib/containers/router/router
         mkdir -p /rootfs/usr/local/etc/containers
