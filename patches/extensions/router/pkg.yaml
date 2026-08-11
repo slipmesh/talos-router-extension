@@ -45,6 +45,15 @@ steps:
         install -m 0755 /pkg/router-bin /rootfs/usr/local/lib/containers/router/router
         mkdir -p /rootfs/usr/local/etc/containers
         cp /pkg/router-service.yaml /rootfs/usr/local/etc/containers/router.yaml
+
+        # `variant: scratch` means the rootfs otherwise ships with no CA trust store at
+        # all - `router`'s RIPEstat bypass resolver (reqwest + rustls-native-certs, reads
+        # the system bundle off disk) needs one to make any HTTPS request whatsoever.
+        # Without this, every RIPEstat call fails TLS verification against an empty root
+        # store (confirmed directly against a deployed node).
+        apk add --no-cache ca-certificates
+        mkdir -p /rootfs/etc/ssl/certs
+        cp /etc/ssl/certs/ca-certificates.crt /rootfs/etc/ssl/certs/ca-certificates.crt
     test:
       - |
         mkdir -p /extensions-validator-rootfs
