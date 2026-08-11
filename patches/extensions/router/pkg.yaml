@@ -24,6 +24,16 @@ steps:
         destination: bird.tar.gz
         sha256: "{{ .BUILD_ARG_BIRD_SHA256 }}"
         sha512: "{{ .BUILD_ARG_BIRD_SHA512 }}"
+      # Mozilla's CA bundle, curl's own dated re-publication of it (curl.se's undated
+      # cacert.pem is a moving target - the dated snapshot gives bldr's own
+      # sha256/sha512 verification something stable to pin against, same reasoning as
+      # BIRD_SHA256/SHA512 above). Needed because this build stage has neither a CA
+      # trust store nor a package manager to install one with (both confirmed directly)
+      # - see the `install` step below for why one's needed at all.
+      - url: "https://curl.se/ca/cacert-2026-07-16.pem"
+        destination: cacert.pem
+        sha256: "3ff344e30b9b1ed2971044eabb438a08f2e2245ddb5f8ab1a3ad8b63ab4eaf91"
+        sha512: "c7e70bca4d1af169bca97a313b56a90cd233a62b7ba47b531fa0bc2b0e7edaf964933d9777df8320b5b8e8769740b0c1dfd1d24edec574551121e172ea54b470"
     prepare:
       - |
         tar -xf bird.tar.gz --strip-components=1
@@ -50,10 +60,12 @@ steps:
         # all - `router`'s RIPEstat bypass resolver (reqwest + rustls-native-certs, reads
         # the system bundle off disk) needs one to make any HTTPS request whatsoever.
         # Without this, every RIPEstat call fails TLS verification against an empty root
-        # store (confirmed directly against a deployed node).
-        apk add --no-cache ca-certificates
+        # store (confirmed directly against a deployed node). This build stage has
+        # neither a CA store nor a package manager to install one with (both confirmed
+        # directly - every conventional Linux path came up empty, and `apk`/`apt` are
+        # both absent), hence fetching one ourselves above instead.
         mkdir -p /rootfs/etc/ssl/certs
-        cp /etc/ssl/certs/ca-certificates.crt /rootfs/etc/ssl/certs/ca-certificates.crt
+        cp cacert.pem /rootfs/etc/ssl/certs/ca-certificates.crt
     test:
       - |
         mkdir -p /extensions-validator-rootfs
