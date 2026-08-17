@@ -23,6 +23,11 @@ ifeq ($(TARGET_ARCH),)
     $(error TARGET_ARCH not set - pass TARGET_ARCH=amd64 or TARGET_ARCH=arm64)
   endif
 endif
+ifeq ($(RELEASE_TAG),)
+  ifneq ($(filter-out distclean help hashes checkout-extensions,$(_GOALS)),)
+    $(error RELEASE_TAG not set - pass RELEASE_TAG=v0.1.0+bird$(BIRD_VERSION), the git tag this build is released under)
+  endif
+endif
 
 BUILD_DIR      := build
 EXTENSIONS_DIR := $(BUILD_DIR)/extensions
@@ -36,11 +41,14 @@ AGENT_RUST_TARGET_arm64 := aarch64-unknown-linux-musl
 AGENT_RUST_TARGET       := $(AGENT_RUST_TARGET_$(TARGET_ARCH))
 AGENTS_SHA              := $(shell git -C $(AGENTS_DIR) rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-# Tag includes AGENTS_SHA (../talos-extensions' own commit) so a rebuild after fixing
-# something there always gets a genuinely new tag - re-pushing under an unchanged tag has
-# been observed (in ../talos-awg-extension) to not reliably reach a node on `talosctl
-# upgrade`. See that repo's AGENTS.md for the specifics.
-EXT_IMAGE := $(IMAGE):extension-$(TALOS_VERSION)-router-$(AGENTS_SHA)-$(TARGET_ARCH)
+# Registry tag follows ../bird's own convention: the git release tag *is* the image tag
+# (`+` swapped for `-`, since OCI tags can't contain `+`) - RELEASE_TAG is required, not
+# derived from versions.env pins, so a rebuild against unchanged pins still needs an
+# explicit new release to publish under (the old AGENTS_SHA-keyed scheme's staleness fix -
+# re-pushing under an unchanged tag has been observed, in ../talos-awg-extension, to not
+# reliably reach a node on `talosctl upgrade` - is now just "cut a new release").
+RELEASE_TAG_SAFE := $(subst +,-,$(RELEASE_TAG))
+EXT_IMAGE := $(IMAGE):$(RELEASE_TAG_SAFE)-$(TARGET_ARCH)
 
 ##@ General
 
@@ -57,6 +65,7 @@ print-config: ## Show the resolved pins, arch and image names.
 	@echo "bird version     : $(BIRD_VERSION)"
 	@echo "host arch        : $$(uname -m)"
 	@echo "target arch      : $(TARGET_ARCH)"
+	@echo "release tag      : $(RELEASE_TAG)"
 	@echo "extension image  : $(EXT_IMAGE)"
 
 .PHONY: preflight
