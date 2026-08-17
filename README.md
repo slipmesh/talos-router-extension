@@ -63,7 +63,7 @@ make extension           # build bird + package with the router daemon (this arc
 make all                   # preflight -> extension
 ```
 
-`make extension` pushes straight to `docker.io/ffaxl/talos` and prints the tag -
+`make extension` pushes straight to `ghcr.io/slipmesh/talos-router-extension` and prints the tag -
 `../talos-installer` needs that ref to bundle it into an installer.
 
 ## Verifying a build
