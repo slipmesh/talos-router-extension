@@ -49,11 +49,16 @@ packaging alongside `bird` (part of `make extension`).
 ## Cross-architecture
 
 ```sh
-make extension TARGET_ARCH=amd64
-make extension TARGET_ARCH=arm64
+make extension TARGET_ARCH=amd64 RELEASE_TAG=v0.1.0+bird2.18
+make extension TARGET_ARCH=arm64 RELEASE_TAG=v0.1.0+bird2.18
 ```
 
 ## Usage
+
+Every build/publish target needs `TARGET_ARCH=amd64|arm64` and `RELEASE_TAG=<the git tag
+being released>` (no defaults). Like `../bird`, `RELEASE_TAG` *is* the published image tag
+(`+` swapped for `-`, since OCI tags can't contain `+`) - see `cliff.toml`'s `tag_pattern`
+for the exact shape (`vX.Y.Z[+birdA.B.C]`).
 
 ```sh
 make print-config   # resolved pins, arch, image names
@@ -84,7 +89,7 @@ schema and machine-config example.
 ## Bumping
 
 **BIRD:** set `BIRD_VERSION`, run `make hashes`, paste both values back, `make extension
-TARGET_ARCH=<arch>`.
+TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.
