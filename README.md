@@ -41,13 +41,15 @@ make extension TARGET_ARCH=amd64 RELEASE_TAG=... AGENTS_DIR=/path/to/talos-exten
 ## How it works
 
 Same mechanism `talos-awg-extension` uses for packaging (siderolabs/extensions'
-`pkg.yaml`/`bldr` pipeline), just without a kernel-module dependency step. BIRD is built
-from source as part of `patches/extensions/router/pkg.yaml` with the same
-`--disable-client` flag siderolabs/extensions' own `network/bird2` package uses - the
-`router` daemon doesn't need the `birdc` CLI tool at all (it's a from-scratch client for
-BIRD's control-socket wire protocol, see `talos-extensions/router/src/birdc.rs`'s own
-doc comment), and `birdc` needs GNU Readline to build, which isn't otherwise available -
-see the comment at the top of that file for the full story and pin provenance.
+`pkg.yaml`/`bldr` pipeline), and the same way it gets its payload: BIRD is not built here
+but pulled in as a published image, `ghcr.io/slipmesh/bird`, which
+[bird](https://github.com/slipmesh/bird) builds statically from upstream. A dependency
+image is an OCI layer merge rather than a second build, so there is one BIRD to keep
+current instead of two, and this repository has no source download of its own to pin.
+
+The `router` daemon never invokes `birdc` - it implements BIRD's control-socket protocol
+directly (see `talos-extensions`' `router/src/birdc.rs`) - but the binary ships anyway,
+because it is what a human needs when debugging a node.
 
 ```text
 versions.env            every pin: Talos version, extensions commit, BIRD version, image
@@ -105,8 +107,10 @@ schema and machine-config example.
 
 ## Bumping
 
-**BIRD:** set `BIRD_VERSION`, run `make hashes`, paste both values back, `make extension
-TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
+**BIRD:** release it in [bird](https://github.com/slipmesh/bird) first, then set
+`BIRD_IMAGE_TAG` to the image that release published and `BIRD_VERSION` to the BIRD inside
+it - the second names this extension's own version and release tag, and nothing checks that
+the two agree. Then `make extension TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.

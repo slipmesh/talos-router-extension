@@ -4,43 +4,26 @@
 # package has no `dependencies: [image: ...]` on anything from ../talos-kernel at all -
 # it's fully independent of that repo.
 #
-# BIRD is built from source here with the *same* `--disable-client` flag
-# siderolabs/extensions' own network/bird2 package uses - despite the module being named
-# `birdc.rs`, ../talos-extensions/router doesn't shell out to the `birdc` CLI binary at
-# all (see that file's own doc comment): it's a from-scratch client for BIRD's control-
-# socket wire protocol, talking to /run/bird.ctl directly over a Unix socket. So there's
-# no need to build the actual `birdc` tool (which needs GNU Readline: `configure` fails
-# without either Readline or --disable-client) - only the `bird`
-# daemon binary itself. BIRD_VERSION/SHA256/SHA512 come in as --build-arg (see Makefile),
-# same convention as amneziawg-pkg's AWG_REF in ../talos-kernel.
+# BIRD is not built here. slipmesh/bird publishes it already built - statically linked
+# against musl, from upstream source, with its own test suite run - so this pulls that
+# image in as a plain OCI layer merge, the same way talos-awg-extension pulls the signed
+# amneziawg module out of amneziawg-pkg. One BIRD build serves both, and neither the
+# source download nor its checksum is this repository's problem any more.
+#
+# Both binaries are copied out. `router` never calls `birdc` - it speaks BIRD's
+# control-socket protocol itself, over /run/bird.ctl - but `birdc` is what a human has to
+# hand when debugging a node.
 name: router
 variant: scratch
 shell: /bin/bash
 dependencies:
   - stage: base
+  - image: "{{ .BUILD_ARG_BIRD_IMAGE }}:{{ .BUILD_ARG_BIRD_IMAGE_TAG }}"
 steps:
-  - sources:
-      - url: "https://gitlab.nic.cz/labs/bird/-/archive/v{{ .BUILD_ARG_BIRD_VERSION }}/bird-v{{ .BUILD_ARG_BIRD_VERSION }}.tar.gz"
-        destination: bird.tar.gz
-        sha256: "{{ .BUILD_ARG_BIRD_SHA256 }}"
-        sha512: "{{ .BUILD_ARG_BIRD_SHA512 }}"
-    prepare:
-      - |
-        tar -xf bird.tar.gz --strip-components=1
-      - |
-        autoreconf -fi
-
-        export CFLAGS="${CFLAGS} -I/usr/local/include -static"
-        export LDFLAGS="${LDFLAGS} -static"
-
-        ./configure --disable-client --prefix=/usr/local
-    build:
-      - |
-        make -j $(nproc) all
-    install:
+  - install:
       - |
         mkdir -p /rootfs/usr/local/lib/containers/router
-        cp bird /rootfs/usr/local/lib/containers/router/bird
+        cp /bird /birdc /rootfs/usr/local/lib/containers/router/
 
         install -m 0755 /pkg/router-bin /rootfs/usr/local/lib/containers/router/router
         mkdir -p /rootfs/usr/local/etc/containers
