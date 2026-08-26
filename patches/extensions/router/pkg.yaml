@@ -9,8 +9,8 @@
 # `birdc.rs`, ../talos-extensions/router doesn't shell out to the `birdc` CLI binary at
 # all (see that file's own doc comment): it's a from-scratch client for BIRD's control-
 # socket wire protocol, talking to /run/bird.ctl directly over a Unix socket. So there's
-# no need to build the actual `birdc` tool (which needs GNU Readline - confirmed the hard
-# way: `configure` fails without either Readline or --disable-client) - only the `bird`
+# no need to build the actual `birdc` tool (which needs GNU Readline: `configure` fails
+# without either Readline or --disable-client) - only the `bird`
 # daemon binary itself. BIRD_VERSION/SHA256/SHA512 come in as --build-arg (see Makefile),
 # same convention as amneziawg-pkg's AWG_REF in ../talos-kernel.
 name: router
