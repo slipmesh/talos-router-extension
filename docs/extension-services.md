@@ -18,8 +18,8 @@ happens at all.
 
 Talos nodes need mesh route exchange (which node reaches which pod/service/bypass range,
 learned over OSPF/iBGP) the same way they need AmneziaWG interfaces up before/without a
-Kubernetes API - `slipmesh-operators`' `router` (see github.com/slipmesh/operators) solves the
-equivalent problem for already-clustered nodes, driven by Kubernetes CRDs; `ext-router` solves
+Kubernetes API. The Kubernetes-operator implementation this replaced solved the equivalent
+problem for already-clustered nodes, driven by CRDs; `ext-router` solves
 it for a node that hasn't joined a cluster yet (or never will), driven by a static config file
 instead. See `talos-extensions`' README, `router` section, for the full design rationale, and
 treat its invariants as load-bearing for anything changed here: no Kubernetes dependency, no
