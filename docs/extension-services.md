@@ -21,10 +21,9 @@ learned over OSPF/iBGP) the same way they need AmneziaWG interfaces up before/wi
 Kubernetes API - `slipmesh-operators`' `router` (see github.com/slipmesh/operators) solves the
 equivalent problem for already-clustered nodes, driven by Kubernetes CRDs; `ext-router` solves
 it for a node that hasn't joined a cluster yet (or never will), driven by a static config file
-instead. See `../talos-extensions/README.md`'s `## router` section for the full design
-rationale (what got ported from the k8s original, what got dropped, and why) and
-`../talos-extensions/AGENTS.md` for the invariants a future change here must not break (no
-Kubernetes dependency, no CRD-derived topology, etc).
+instead. See `talos-extensions`' README, `router` section, for the full design rationale, and
+treat its invariants as load-bearing for anything changed here: no Kubernetes dependency, no
+CRD-derived topology.
 
 ## Config: everything declared statically, nothing discovered
 
