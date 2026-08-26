@@ -138,9 +138,10 @@ both binaries built:
 ```sh
 cd ../talos-extensions
 cargo build -p router
-# bird/birdc: either `make bird TARGET_ARCH=<host-arch>` here first and copy them out, or a
-# locally-installed `bird`/`birdc` (e.g. Alpine's bird2 package) - router only needs something
-# that speaks BIRD's own control-socket protocol at the path it launches bird with.
+# bird/birdc: a locally-installed pair (e.g. Alpine's bird2 package) is enough - router only
+# needs something that speaks BIRD's own control-socket protocol at the path it launches bird
+# with. The statically-linked pair this extension ships can be copied out of a built image
+# instead: `docker create` it, then `docker cp <id>:/usr/local/lib/containers/router/bird .`
 sudo mkdir -p /etc/talos-extensions
 sudo cp <a hand-written router.yaml> /etc/talos-extensions/router.yaml
 sudo ./target/debug/router
