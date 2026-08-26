@@ -107,8 +107,10 @@ schema and machine-config example.
 
 ## Bumping
 
-**BIRD:** set `BIRD_VERSION`, run `make hashes`, paste both values back, `make extension
-TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
+**BIRD:** release it in [bird](https://github.com/slipmesh/bird) first, then set
+`BIRD_IMAGE_TAG` to the image that release published and `BIRD_VERSION` to the BIRD inside
+it - the second names this extension's own version and release tag, and nothing checks that
+the two agree. Then `make extension TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.
