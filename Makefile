@@ -86,7 +86,7 @@ $(BUILD_DIR):
 	@mkdir -p $@
 
 .PHONY: checkout-extensions
-checkout-extensions: | $(BUILD_DIR) ## Fetch siderolabs/extensions at the pinned commit, overlay patches/extensions/.
+checkout-extensions: | $(BUILD_DIR) ## Fetch siderolabs/extensions at the pinned ref, overlay patches/extensions/.
 	@if [ ! -d "$(EXTENSIONS_DIR)/.git" ]; then \
 	  echo "==> cloning siderolabs/extensions"; \
 	  git clone --filter=blob:none --quiet https://github.com/siderolabs/extensions.git $(EXTENSIONS_DIR); \
