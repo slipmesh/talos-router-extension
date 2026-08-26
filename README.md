@@ -10,11 +10,16 @@ Builds with **Docker** (`docker buildx`), on any machine, for any target archite
 
 ## This is one of five repos
 
-- [talos-kernel](https://github.com/slipmesh/talos-kernel) — signed kernel + `amneziawg-pkg`
-- [talos-awg-extension](https://github.com/slipmesh/talos-awg-extension) — amneziawg system extension (pulls `amneziawg-pkg`)
-- [talos-router-extension](https://github.com/slipmesh/talos-router-extension) — router system extension (no kernel dependency) — **this repo**
-- [talos-nftables-extension](https://github.com/slipmesh/talos-nftables-extension) — nftables system extension (no kernel dependency)
-- [talos-installer](https://github.com/slipmesh/talos-installer) — assembles a kernel + N extensions into an installer
+- [talos-kernel](https://github.com/slipmesh/talos-kernel) —
+  signed kernel + `amneziawg-pkg`
+- [talos-awg-extension](https://github.com/slipmesh/talos-awg-extension) —
+  amneziawg system extension (pulls `amneziawg-pkg`)
+- [talos-router-extension](https://github.com/slipmesh/talos-router-extension) —
+  router system extension (no kernel dependency) — **this repo**
+- [talos-nftables-extension](https://github.com/slipmesh/talos-nftables-extension) —
+  nftables system extension (no kernel dependency)
+- [talos-installer](https://github.com/slipmesh/talos-installer) —
+  assembles a kernel + N extensions into an installer
 
 Each repo builds and publishes independently. Unlike `talos-awg-extension`, this repo
 doesn't need `talos-kernel` built first - `preflight` has no dependency-image check.
@@ -44,7 +49,7 @@ BIRD's control-socket wire protocol, see `talos-extensions/router/src/birdc.rs`'
 doc comment), and `birdc` needs GNU Readline to build, which isn't otherwise available -
 see the comment at the top of that file for the full story and pin provenance.
 
-```
+```text
 versions.env            every pin: Talos version, extensions commit, BIRD version, image
 patches/extensions/router/  overlaid onto a siderolabs/extensions checkout - builds BIRD,
                              packages it + the router daemon into an extension
