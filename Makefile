@@ -111,10 +111,9 @@ agents: ## Cross-compile the router extension-service daemon (../talos-extension
 # lowercase-hex token, then literal "-v", then TALOS_VERSION's own X.Y.Z, with anything
 # else (BIRD_VERSION here) only valid as a further "-"-prefixed suffix *after* that,
 # folded into the semver prerelease part. AGENTS_SHA has to come first for exactly this
-# reason (confirmed the hard way: BIRD_VERSION-TALOS_VERSION-AGENTS_SHA and
-# bird+BIRD_VERSION-TALOS_VERSION-AGENTS_SHA both rejected with "invalid version format" -
-# same regex talos-awg-extension's own EXT_VERSION already satisfies by luck of field
-# order, not by design there either).
+# reason: BIRD_VERSION-TALOS_VERSION-AGENTS_SHA and bird+BIRD_VERSION-TALOS_VERSION-AGENTS_SHA
+# are both rejected with "invalid version format". talos-awg-extension's own EXT_VERSION
+# satisfies the same regex by luck of field order, not by design there either.
 EXT_VERSION := $(AGENTS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
 
 BIRD_ARGS := --build-arg=BIRD_VERSION=$(BIRD_VERSION) --build-arg=BIRD_SHA256=$(BIRD_SHA256) --build-arg=BIRD_SHA512=$(BIRD_SHA512)
