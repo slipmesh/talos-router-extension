@@ -19,12 +19,12 @@ SHELL := /bin/bash
 
 _GOALS := $(or $(MAKECMDGOALS),$(.DEFAULT_GOAL))
 ifeq ($(TARGET_ARCH),)
-  ifneq ($(filter-out distclean help hashes checkout-extensions,$(_GOALS)),)
+  ifneq ($(filter-out distclean help checkout-extensions,$(_GOALS)),)
     $(error TARGET_ARCH not set - pass TARGET_ARCH=amd64 or TARGET_ARCH=arm64)
   endif
 endif
 ifeq ($(RELEASE_TAG),)
-  ifneq ($(filter-out distclean help hashes checkout-extensions,$(_GOALS)),)
+  ifneq ($(filter-out distclean help checkout-extensions,$(_GOALS)),)
     $(error RELEASE_TAG not set - pass RELEASE_TAG=v0.1.0+bird$(BIRD_VERSION), the git tag this build is released under)
   endif
 endif
@@ -116,7 +116,7 @@ agents: ## Cross-compile the router extension-service daemon (../talos-extension
 # satisfies the same regex by luck of field order, not by design there either.
 EXT_VERSION := $(AGENTS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
 
-BIRD_ARGS := --build-arg=BIRD_VERSION=$(BIRD_VERSION) --build-arg=BIRD_SHA256=$(BIRD_SHA256) --build-arg=BIRD_SHA512=$(BIRD_SHA512)
+BIRD_ARGS := --build-arg=BIRD_IMAGE=$(BIRD_IMAGE) --build-arg=BIRD_IMAGE_TAG=$(BIRD_IMAGE_TAG)
 
 .PHONY: extension
 extension: agents checkout-extensions ## Package bird/birdc + the router daemon into a Talos system extension image (bldr).
@@ -133,14 +133,6 @@ extension: agents checkout-extensions ## Package bird/birdc + the router daemon 
 all: preflight extension ## Everything: agents -> extension image.
 
 ##@ Maintenance
-
-.PHONY: hashes
-hashes: ## Recompute BIRD_SHA256/BIRD_SHA512 for the current BIRD_VERSION.
-	@tmp=$$(mktemp); \
-	curl -sSL --fail "https://gitlab.nic.cz/labs/bird/-/archive/v$(BIRD_VERSION)/bird-v$(BIRD_VERSION).tar.gz" -o "$$tmp"; \
-	echo "BIRD_SHA256=$$(sha256sum "$$tmp" | cut -d' ' -f1)"; \
-	echo "BIRD_SHA512=$$(sha512sum "$$tmp" | cut -d' ' -f1)"; \
-	rm -f "$$tmp"
 
 .PHONY: clean
 clean: ## No separate build output to drop - kept for symmetry with the other repos.
