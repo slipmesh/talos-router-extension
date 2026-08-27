@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.4+bird2.19.2] - 2026-08-27
+
+### Changed 🔧
+
+- Take BIRD from the published image instead of building it here
+
+### Documentation 📚
+
+- Describe the bump the way it now works
+
+### Miscellaneous 🧹
+
+- Move markdownlint config to the cli2 file
+- Pin the extensions checkout by release tag, not by commit
+- Derive the extensions ref from the Talos version
+- Consume the bird image built without the local patch
+
 ## [0.1.3+bird2.18] - 2026-08-26
 
 ### Documentation 📚
