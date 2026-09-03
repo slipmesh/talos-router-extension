@@ -19,12 +19,12 @@ SHELL := /bin/bash
 
 _GOALS := $(or $(MAKECMDGOALS),$(.DEFAULT_GOAL))
 ifeq ($(TARGET_ARCH),)
-  ifneq ($(filter-out distclean help checkout-extensions check-agents,$(_GOALS)),)
+  ifneq ($(filter-out distclean help checkout-extensions check-daemons,$(_GOALS)),)
     $(error TARGET_ARCH not set - pass TARGET_ARCH=amd64 or TARGET_ARCH=arm64)
   endif
 endif
 ifeq ($(RELEASE_TAG),)
-  ifneq ($(filter-out distclean help checkout-extensions check-agents,$(_GOALS)),)
+  ifneq ($(filter-out distclean help checkout-extensions check-daemons,$(_GOALS)),)
     $(error RELEASE_TAG not set - pass RELEASE_TAG=v0.1.0+bird$(BIRD_VERSION), the git tag this build is released under)
   endif
 endif
@@ -35,16 +35,16 @@ EXTENSIONS_DIR := $(BUILD_DIR)/extensions
 # The `router` extension-service daemon lives in a sibling repo, not here - this repo
 # only cross-compiles it and hands the binary to the siderolabs/extensions checkout for
 # packaging. See that repo's README for what it does.
-AGENTS_DIR              := ../talos-extensions
-AGENT_RUST_TARGET_amd64 := x86_64-unknown-linux-musl
-AGENT_RUST_TARGET_arm64 := aarch64-unknown-linux-musl
-AGENT_RUST_TARGET       := $(AGENT_RUST_TARGET_$(TARGET_ARCH))
-AGENTS_SHA              := $(shell git -C $(AGENTS_DIR) rev-parse --short HEAD 2>/dev/null || echo unknown)
+DAEMONS_DIR              := ../talos-extensions
+DAEMON_RUST_TARGET_amd64 := x86_64-unknown-linux-musl
+DAEMON_RUST_TARGET_arm64 := aarch64-unknown-linux-musl
+DAEMON_RUST_TARGET       := $(DAEMON_RUST_TARGET_$(TARGET_ARCH))
+DAEMONS_SHA              := $(shell git -C $(DAEMONS_DIR) rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 # Registry tag follows ../bird's own convention: the git release tag *is* the image tag
 # (`+` swapped for `-`, since OCI tags can't contain `+`) - RELEASE_TAG is required, not
 # derived from versions.env pins, so a rebuild against unchanged pins still needs an
-# explicit new release to publish under (the old AGENTS_SHA-keyed scheme's staleness fix -
+# explicit new release to publish under (the old DAEMONS_SHA-keyed scheme's staleness fix -
 # re-pushing under an unchanged tag has been observed, in ../talos-awg-extension, to not
 # reliably reach a node on `talosctl upgrade` - is now just "cut a new release").
 RELEASE_TAG_SAFE := $(subst +,-,$(RELEASE_TAG))
@@ -62,7 +62,7 @@ help: ## Show this help.
 print-config: ## Show the resolved pins, arch and image names.
 	@echo "talos            : $(TALOS_VERSION)"
 	@echo "extensions ref   : $(UPSTREAM_EXTENSIONS_REF)"
-	@echo "agents ref       : $(AGENTS_REF) (sibling at $(AGENTS_SHA))"
+	@echo "daemons ref      : $(DAEMONS_REF) (sibling at $(DAEMONS_SHA))"
 	@echo "bird version     : $(BIRD_VERSION)"
 	@echo "host arch        : $$(uname -m)"
 	@echo "target arch      : $(TARGET_ARCH)"
@@ -77,7 +77,7 @@ preflight: ## Check this machine can run the build.
 	docker version >/dev/null 2>&1 || { echo "docker daemon not reachable (permission denied or not running)"; fail=1; }; \
 	command -v cargo >/dev/null || { echo "MISSING: cargo"; fail=1; }; \
 	command -v cargo-zigbuild >/dev/null || { echo "MISSING: cargo-zigbuild (cargo install cargo-zigbuild --locked)"; fail=1; }; \
-	[ -d $(AGENTS_DIR) ] || { echo "MISSING: sibling checkout $(AGENTS_DIR)"; fail=1; }; \
+	[ -d $(DAEMONS_DIR) ] || { echo "MISSING: sibling checkout $(DAEMONS_DIR)"; fail=1; }; \
 	echo "host $$(uname -m)"; \
 	[ $$fail -eq 0 ] && echo "preflight OK" || exit 1
 
@@ -97,24 +97,24 @@ checkout-extensions: | $(BUILD_DIR) ## Fetch siderolabs/extensions at the pinned
 	@rm -rf $(EXTENSIONS_DIR)/router
 	@cp -r patches/extensions/router $(EXTENSIONS_DIR)/router
 
-.PHONY: check-agents
-check-agents: ## Assert ../talos-extensions is checked out at AGENTS_REF.
-	@test -d $(AGENTS_DIR) || { echo "sibling checkout not found: $(AGENTS_DIR)"; exit 1; }
-	@have=$$(git -C $(AGENTS_DIR) describe --tags --exact-match HEAD 2>/dev/null || echo "<untagged>"); \
-	if [ "$$have" = "$(AGENTS_REF)" ]; then \
-	  echo "talos-extensions at $(AGENTS_REF)"; \
+.PHONY: check-daemons
+check-daemons: ## Assert ../talos-extensions is checked out at DAEMONS_REF.
+	@test -d $(DAEMONS_DIR) || { echo "sibling checkout not found: $(DAEMONS_DIR)"; exit 1; }
+	@have=$$(git -C $(DAEMONS_DIR) describe --tags --exact-match HEAD 2>/dev/null || echo "<untagged>"); \
+	if [ "$$have" = "$(DAEMONS_REF)" ]; then \
+	  echo "talos-extensions at $(DAEMONS_REF)"; \
 	else \
-	  echo "MISMATCH: ../talos-extensions is at $$have, AGENTS_REF is $(AGENTS_REF)"; \
+	  echo "MISMATCH: ../talos-extensions is at $$have, DAEMONS_REF is $(DAEMONS_REF)"; \
 	  echo "the daemon baked into the extension would not be the one this release names"; \
 	  exit 1; \
 	fi
 
-.PHONY: agents
-agents: check-agents ## Cross-compile the router extension-service daemon (../talos-extensions).
+.PHONY: daemons
+daemons: check-daemons ## Cross-compile the router extension-service daemon (../talos-extensions).
 	@command -v cargo-zigbuild >/dev/null || { echo "MISSING: cargo-zigbuild"; exit 1; }
-	@rustup target add $(AGENT_RUST_TARGET) >/dev/null 2>&1 || true
-	@echo "==> cross-compiling router for $(TARGET_ARCH) ($(AGENT_RUST_TARGET))"
-	@(cd $(AGENTS_DIR) && cargo zigbuild --release --target $(AGENT_RUST_TARGET) -p router)
+	@rustup target add $(DAEMON_RUST_TARGET) >/dev/null 2>&1 || true
+	@echo "==> cross-compiling router for $(TARGET_ARCH) ($(DAEMON_RUST_TARGET))"
+	@(cd $(DAEMONS_DIR) && cargo zigbuild --release --target $(DAEMON_RUST_TARGET) -p router)
 
 # Field order here is load-bearing, not stylistic: siderolabs' own extensions-validator
 # (cmd/extensions-validator/cmd/validate.go) only accepts a handful of exact version
@@ -122,18 +122,18 @@ agents: check-agents ## Cross-compile the router extension-service daemon (../ta
 # text is `^([0-9a-f]+)-v(\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?)...$` - a
 # lowercase-hex token, then literal "-v", then TALOS_VERSION's own X.Y.Z, with anything
 # else (BIRD_VERSION here) only valid as a further "-"-prefixed suffix *after* that,
-# folded into the semver prerelease part. AGENTS_SHA has to come first for exactly this
-# reason: BIRD_VERSION-TALOS_VERSION-AGENTS_SHA and bird+BIRD_VERSION-TALOS_VERSION-AGENTS_SHA
+# folded into the semver prerelease part. DAEMONS_SHA has to come first for exactly this
+# reason: BIRD_VERSION-TALOS_VERSION-DAEMONS_SHA and bird+BIRD_VERSION-TALOS_VERSION-DAEMONS_SHA
 # are both rejected with "invalid version format". talos-awg-extension's own EXT_VERSION
 # satisfies the same regex by luck of field order, not by design there either.
-EXT_VERSION := $(AGENTS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
+EXT_VERSION := $(DAEMONS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
 
 BIRD_ARGS := --build-arg=BIRD_IMAGE=$(BIRD_IMAGE) --build-arg=BIRD_IMAGE_TAG=$(BIRD_IMAGE_TAG)
 
 .PHONY: extension
-extension: agents checkout-extensions ## Package bird/birdc + the router daemon into a Talos system extension image (bldr).
-	@cp $(AGENTS_DIR)/target/$(AGENT_RUST_TARGET)/release/router $(EXTENSIONS_DIR)/router/router-bin
-	@cp $(AGENTS_DIR)/extension-services/router.yaml $(EXTENSIONS_DIR)/router/router-service.yaml
+extension: daemons checkout-extensions ## Package bird/birdc + the router daemon into a Talos system extension image (bldr).
+	@cp $(DAEMONS_DIR)/target/$(DAEMON_RUST_TARGET)/release/router $(EXTENSIONS_DIR)/router/router-bin
+	@cp $(DAEMONS_DIR)/extension-services/router.yaml $(EXTENSIONS_DIR)/router/router-service.yaml
 	@echo "==> building $(EXT_IMAGE) ($(TARGET_ARCH))"
 	@$(MAKE) -C $(EXTENSIONS_DIR) docker-router PLATFORM=linux/$(TARGET_ARCH) \
 	  TARGET_ARGS="--tag=$(EXT_IMAGE) --push=true $(BIRD_ARGS) --build-arg=VERSION=$(EXT_VERSION)"
@@ -142,7 +142,7 @@ extension: agents checkout-extensions ## Package bird/birdc + the router daemon 
 	@echo "talos-installer needs this ref to bundle it into an installer"
 
 .PHONY: all
-all: preflight extension ## Everything: agents -> extension image.
+all: preflight extension ## Everything: daemons -> extension image.
 
 ##@ Maintenance
 
