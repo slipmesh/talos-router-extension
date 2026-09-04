@@ -26,14 +26,14 @@ doesn't need `talos-kernel` built first - `preflight` has no dependency-image ch
 
 ### One checkout it does need
 
-`make agents` cross-compiles the daemon out of
+`make daemons` cross-compiles the daemon out of
 [talos-extensions](https://github.com/slipmesh/talos-extensions), so that repository has to exist
 on disk - it's the one thing here that isn't consumed as a published image. The default is a
-sibling checkout, `AGENTS_DIR := ../talos-extensions`; clone the two side by side, or point it
+sibling checkout, `DAEMONS_DIR := ../talos-extensions`; clone the two side by side, or point it
 anywhere:
 
 ```sh
-make extension TARGET_ARCH=amd64 RELEASE_TAG=... AGENTS_DIR=/path/to/talos-extensions
+make extension TARGET_ARCH=amd64 RELEASE_TAG=... DAEMONS_DIR=/path/to/talos-extensions
 ```
 
 `preflight` fails loudly if the directory isn't there.
@@ -62,7 +62,7 @@ build/                   (gitignored) the extensions checkout
 it from `versions.env` and `patches/` alone.
 
 The `router` binary itself lives in the sibling repo `talos-extensions` and is
-cross-compiled by `make agents`, then handed to the `siderolabs/extensions` checkout for
+cross-compiled by `make daemons`, then handed to the `siderolabs/extensions` checkout for
 packaging alongside `bird` (part of `make extension`).
 
 ## Cross-architecture
@@ -82,7 +82,7 @@ for the exact shape (`vX.Y.Z[+birdA.B.C]`).
 ```sh
 make print-config   # resolved pins, arch, image names
 make preflight       # docker/buildx/git/curl/cargo/cargo-zigbuild present
-make agents            # cross-compile router from ../talos-extensions
+make daemons            # cross-compile router from ../talos-extensions
 make extension           # build bird + package with the router daemon (this arch)
 make all                   # preflight -> extension
 ```
@@ -115,6 +115,7 @@ the two agree. Then `make extension TARGET_ARCH=<arch> RELEASE_TAG=<new release 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.
 
-**router daemon:** any commit in `talos-extensions` - `make extension` always picks up
-whatever's currently checked out there and tags accordingly (see `AGENTS_SHA` in the
-`Makefile`), no version bump needed here.
+**router daemon:** the `talos-extensions` release tag named by `DAEMONS_REF` -
+`make check-daemons` refuses to build unless the sibling checkout sits at it, and
+`DAEMONS_SHA` records the commit into `EXT_VERSION`. To pick up new daemon work, tag
+`talos-extensions` and bump `DAEMONS_REF`.
