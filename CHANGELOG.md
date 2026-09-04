@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.5+bird2.19.2] - 2026-09-04
+
+### Added ✨
+
+- Pin talos-extensions by release tag, not branch tip
+- Build the router extension against Talos v1.14.0
+
+### CI/CD ⚙️
+
+- Read DAEMONS_REF only when versions.env names it once
+
+### Changed 🔧
+
+- Name the sibling daemons what they call themselves
+
+### Documentation 📚
+
+- Trim the daemons pin comment
+- Stop restating EXT_VERSION where it can drift
+- Untangle the vars.yaml sentence
+- Stop calling the current variable the old scheme
+
+### Fixed 🐛
+
+- Make the daemons pin fail closed
+- Accept a worktree as the daemons checkout
+- Say why an empty DAEMONS_REF is refused
+- Quote DAEMONS_DIR so a path with spaces resolves
+
 ## [0.1.4+bird2.19.2] - 2026-08-27
 
 ### Changed 🔧
