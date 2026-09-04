@@ -44,9 +44,9 @@ DAEMONS_SHA              := $(shell git -C "$(DAEMONS_DIR)" rev-parse --short HE
 # Registry tag follows ../bird's own convention: the git release tag *is* the image tag
 # (`+` swapped for `-`, since OCI tags can't contain `+`) - RELEASE_TAG is required, not
 # derived from versions.env pins, so a rebuild against unchanged pins still needs an
-# explicit new release to publish under (the old DAEMONS_SHA-keyed scheme's staleness fix -
-# re-pushing under an unchanged tag has been observed, in ../talos-awg-extension, to not
-# reliably reach a node on `talosctl upgrade` - is now just "cut a new release").
+# explicit new release to publish under. It was derived once, and re-pushing under an
+# unchanged tag has been observed, in ../talos-awg-extension, to not reliably reach a node
+# on `talosctl upgrade`.
 RELEASE_TAG_SAFE := $(subst +,-,$(RELEASE_TAG))
 EXT_IMAGE := $(IMAGE):$(RELEASE_TAG_SAFE)-$(TARGET_ARCH)
 
