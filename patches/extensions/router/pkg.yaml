@@ -13,7 +13,7 @@
 # Three binaries are copied out. `router` never calls `birdc` - it speaks BIRD's
 # control-socket protocol itself, over /run/bird.ctl - but `birdc` is what a human has to
 # hand when debugging a node. `bird_exporter` is spawned by `router` as `./bird_exporter`,
-# so it has to sit in that same directory. Their licence texts come along: this image is
+# so it has to sit in that same directory. Their license texts come along: this image is
 # what reaches a node, and a notice left in the image it was built from is not conveyed.
 name: router
 variant: scratch
