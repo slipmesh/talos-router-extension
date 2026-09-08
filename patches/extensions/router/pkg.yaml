@@ -5,14 +5,16 @@
 # it's fully independent of that repo.
 #
 # BIRD is not built here. slipmesh/bird publishes it already built - statically linked
-# against musl, from upstream source, with its own test suite run - so this pulls that
-# image in as a plain OCI layer merge, the same way talos-awg-extension pulls the signed
-# amneziawg module out of amneziawg-pkg. One BIRD build serves both, and neither the
-# source download nor its checksum is this repository's problem any more.
+# from upstream source, with its own test suite run - so this pulls that image in as a
+# plain OCI layer merge, the same way talos-awg-extension pulls the signed amneziawg
+# module out of amneziawg-pkg. One BIRD build serves both, and neither the source download
+# nor its checksum is this repository's problem any more.
 #
-# Both binaries are copied out. `router` never calls `birdc` - it speaks BIRD's
+# Three binaries are copied out. `router` never calls `birdc` - it speaks BIRD's
 # control-socket protocol itself, over /run/bird.ctl - but `birdc` is what a human has to
-# hand when debugging a node.
+# hand when debugging a node. `bird_exporter` is spawned by `router` as `./bird_exporter`,
+# so it has to sit in that same directory. Their licence texts come along: this image is
+# what reaches a node, and a notice left in the image it was built from is not conveyed.
 name: router
 variant: scratch
 shell: /bin/bash
@@ -23,7 +25,9 @@ steps:
   - install:
       - |
         mkdir -p /rootfs/usr/local/lib/containers/router
-        cp /bird /birdc /rootfs/usr/local/lib/containers/router/
+        cp /bird /birdc /bird_exporter /rootfs/usr/local/lib/containers/router/
+        mkdir -p /rootfs/usr/local/share/licenses/router
+        cp /licenses/* /rootfs/usr/local/share/licenses/router/
 
         install -m 0755 /pkg/router-bin /rootfs/usr/local/lib/containers/router/router
         mkdir -p /rootfs/usr/local/etc/containers
