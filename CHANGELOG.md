@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.2+bird3.3.2] - 2026-09-30
+
+### Added ✨
+
+- Build the router extension against Talos v1.14.2
+
+### Build system 🛠️
+
+- Take the daemon release that reads its config through yaml_serde
+
 ## [0.2.1+bird3.3.2] - 2026-09-11
 
 ### Build system 🛠️
