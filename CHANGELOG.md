@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0+bird3.3.3] - 2026-10-19
+
+### Build system 🛠️
+
+- Take the daemon release that reads its config as a template
+
+### Documentation 📚
+
+- Describe the bird.conf template ext-router reads
+
 ## [0.2.4+bird3.3.3] - 2026-10-16
 
 ### Added ✨
