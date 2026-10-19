@@ -44,8 +44,8 @@ bgp_peers:                          # one entry per other mesh node - can't be a
 ospf_interfaces:                    # exact names, shell-glob patterns ("mesh-*"), or CIDRs by address -
   - "mesh-*"                        # fed straight into BIRD's own `interface` clause, matching
                                      # ext-awg's mesh-<short_id> interface naming
-learn:                              # IPv4 CIDR *ranges* (not exact per-peer /32s) re-announced over
-  - "10.99.0.0/24"                  # iBGP whenever a kernel-learned route falls inside one
+learn:                              # IPv4 CIDRs re-announced over iBGP whenever a kernel-learned
+  - "10.99.0.0/24"                  # route is equal to or inside one
 announce:                           # static routes redistributed into iBGP
   - net: "10.96.0.0/12"
     label: "k8s-services"
@@ -74,12 +74,21 @@ could otherwise fall inside `bypass.include` - the same config-authoring-is-a-hu
 responsibility pattern `../talos-awg-extension/docs/extension-services.md` documents for
 `ext-awg`'s private keys.
 
+## BIRD's config: a template of `router.yaml`
+
+`router.yaml` holds the facts; BIRD's config is a second file, `router.conf.j2`, a minijinja
+template of them that `ext-router` renders at startup and on every bypass refresh. It ships none
+of its own, and exits without one. `../talos-extensions/router/templates/router.conf.j2` is the
+reference template, and `talos-extensions`' README, `router` section, lists the variables a
+template can read.
+
 ## Full machine config example
 
 Multi-document machine config YAML - the `ExtensionServiceConfig` document's `name` must match
-the service name (`router`), and its `configFiles[].mountPath` must be exactly
-`/etc/talos-extensions/router.yaml` (the fixed path `ext-router` reads - not configurable, same
-"no env vars, no CLI flags" invariant `ext-awg` follows):
+the service name (`router`), and its `configFiles[].mountPath`s must be exactly
+`/etc/talos-extensions/router.yaml` and `/etc/talos-extensions/router.conf.j2` (the fixed paths
+`ext-router` reads - not configurable, same "no env vars, no CLI flags" invariant `ext-awg`
+follows):
 
 ```yaml
 # ... the rest of a normal v1alpha1 machine config, including whatever ExtensionServiceConfig
@@ -98,6 +107,10 @@ configFiles:
         - name: fra
           address: fd00::2
       ospf_interfaces: ["mesh-*"]
+  - mountPath: /etc/talos-extensions/router.conf.j2
+    content: |
+      router id {{ loopback }};
+      # ... the rest of ../talos-extensions/router/templates/router.conf.j2 ...
 ```
 
 Applying this document (`talosctl apply-config`) restarts `ext-router`'s whole container - both
@@ -144,6 +157,7 @@ cargo build -p router
 # instead: `docker create` it, then `docker cp <id>:/usr/local/lib/containers/router/bird .`
 sudo mkdir -p /etc/talos-extensions
 sudo cp <a hand-written router.yaml> /etc/talos-extensions/router.yaml
+sudo cp router/templates/router.conf.j2 /etc/talos-extensions/router.conf.j2
 sudo ./target/debug/router
 # in another shell:
 ip -d link show router-lo             # confirms the dummy loopback interface, addresses attached
@@ -151,5 +165,5 @@ sudo birdc -s /run/bird.ctl show protocols
 sudo birdc -s /run/bird.ctl show ospf interface mesh6
 ```
 
-Re-running after editing the config file (Ctrl-C, edit, re-run) exercises the same
+Re-running after editing either file (Ctrl-C, edit, re-run) exercises the same
 render-then-reload path a real config-triggered restart would.
