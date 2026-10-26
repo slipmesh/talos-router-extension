@@ -1,0 +1,60 @@
+# A fully static `bird`, built from the unmodified upstream tag BIRD_REV.
+#
+# Built against glibc on Ubuntu rather than on the Talos toolchain, which is musl: BIRD 3 does
+# not survive a static musl build. Upstream's own `make check` dies in filter_test with SIGILL,
+# on amd64 and arm64 alike, while the same tree passes against glibc, statically linked or not.
+# The ubuntu image merged at / makes this stage's rootfs an Ubuntu userland - bldr adds nothing
+# to it but its own variables, which the scripts reset.
+#
+# --disable-client: nothing on a node runs a BIRD client (see README, "How it works"), and the
+# client is the only thing that links GNU readline and ncurses. --disable-libssh: libssh only
+# serves the RPKI-over-SSH transport, which no config here uses.
+#
+# Static glibc warns that getaddrinfo/getpwnam want NSS backends it cannot carry. Since glibc
+# 2.34 the files and dns backends are built in, and none of those calls is reached anyway:
+# they serve `log ... udp <host>`, RPKI, and -u/-g.
+name: router-bird
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - image: docker.io/library/ubuntu:26.04
+steps:
+  - build:
+      - |
+        export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+        unset CFLAGS CXXFLAGS LDFLAGS
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          build-essential ca-certificates git m4 perl autoconf flex bison
+        git clone --depth 1 --branch "{{ .BUILD_ARG_BIRD_REV }}" https://github.com/CZ-NIC/bird.git /src
+        cd /src
+        autoreconf
+        ./configure --disable-client --disable-libssh
+        make LDFLAGS=-static -j"$(nproc)"
+        strip bird
+    install:
+      - |
+        mkdir -p /out/licenses
+        cp /src/bird /out/
+        # BIRD's tree states its license in README but carries no copy of the text.
+        cp /usr/share/common-licenses/GPL-2 /out/licenses/bird.LICENSE
+        cp /usr/share/common-licenses/LGPL-2.1 /out/licenses/glibc.LICENSE
+        cp /usr/share/doc/libc6-dev/copyright /out/licenses/glibc.copyright
+        printf 'BIRD %s, built without modification from tag %s of https://github.com/CZ-NIC/bird\n' \
+          "{{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" "{{ .BUILD_ARG_BIRD_REV }}" \
+          > /out/licenses/bird.SOURCE
+    test:
+      - |
+        export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+        unset CFLAGS CXXFLAGS LDFLAGS
+        cd /src
+        make LDFLAGS=-static -j"$(nproc)" check
+        # Nothing to load at startup is what lets it run in a scratch rootfs. Read out of the
+        # ELF rather than through ldd, which on glibc runs the binary through the loader.
+        readelf -d bird > /tmp/dynamic
+        if grep -q NEEDED /tmp/dynamic; then cat /tmp/dynamic; exit 1; fi
+        version=$(./bird --version 2>&1)
+        [ "$version" = "BIRD version {{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" ]
+finalize:
+  - from: /out
+    to: /
