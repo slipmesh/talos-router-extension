@@ -1,0 +1,53 @@
+# czerwonk/bird_exporter at the unmodified upstream tag BIRD_EXPORTER_REV, built with upstream's
+# release flags (.goreleaser.yml). `-X main.version` is not cosmetic: the version is a literal in
+# the source that lags its own tag, so a build without it misreports itself. CGO off is what
+# makes the binary runnable in a scratch rootfs.
+name: router-bird-exporter
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - image: docker.io/library/golang:1.27.2-trixie@sha256:47667934874913a449b96faa7ef4777fa285d9ec29126ee80ed61c45b7cccf0e
+steps:
+  # bldr runs a step without network unless told otherwise; this one fetches the modules.
+  - network: default
+    build:
+      - |
+        export PATH=/usr/local/go/bin:/usr/sbin:/usr/bin:/sbin:/bin GOPATH=/go GOCACHE=/tmp/go-cache
+        unset CFLAGS CXXFLAGS LDFLAGS
+        rev="{{ .BUILD_ARG_BIRD_EXPORTER_REV }}"
+        CGO_ENABLED=0 go install -trimpath \
+          -ldflags "-s -w -X main.version=${rev#v}" \
+          "github.com/czerwonk/bird_exporter@${rev}"
+    install:
+      - |
+        export PATH=/usr/local/go/bin:/usr/sbin:/usr/bin:/sbin:/bin GOPATH=/go
+        mkdir -p /out/licenses
+        cp /go/bin/bird_exporter /out/
+        cp /usr/local/go/LICENSE /out/licenses/go.LICENSE
+        # Every module linked into the binary, the exporter itself included (`mod` and `dep`
+        # lines). The module cache stores upper-case letters as `!` + lower case, and modules
+        # spell their license file in any case (`License`, `license.md`).
+        shopt -s nocaseglob
+        go version -m /out/bird_exporter | awk '$1 == "mod" || $1 == "dep" { print $2 "@" $3 }' |
+          while read -r module; do
+            dir="/go/pkg/mod/$(sed 's/[A-Z]/!\L&/g' <<<"$module")"
+            name=$(sed 's#[/@]#_#g' <<<"${module%@*}")
+            found=
+            for f in "$dir"/LICENSE* "$dir"/LICENCE* "$dir"/COPYING* "$dir"/NOTICE*; do
+              [ -f "$f" ] || continue
+              cp "$f" "/out/licenses/${name}.$(basename "$f")"
+              found=1
+            done
+            [ -n "$found" ] || { echo "no license text found for $module in $dir"; exit 1; }
+          done
+    test:
+      - |
+        export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+        readelf -d /out/bird_exporter > /tmp/dynamic
+        if grep -q NEEDED /tmp/dynamic; then cat /tmp/dynamic; exit 1; fi
+        version=$(/out/bird_exporter -version)
+        want="Version: {{ .BUILD_ARG_BIRD_EXPORTER_REV | trimPrefix "v" }}"
+        if ! grep -qxF "$want" <<<"$version"; then echo "got '$version', want '$want'"; exit 1; fi
+finalize:
+  - from: /out
+    to: /

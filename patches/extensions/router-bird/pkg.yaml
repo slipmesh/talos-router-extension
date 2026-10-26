@@ -1,0 +1,80 @@
+# A fully static `bird`, built from the unmodified upstream tag BIRD_REV.
+#
+# Built against glibc on Ubuntu rather than on the Talos toolchain, which is musl: BIRD 3 does
+# not survive a static musl build. Upstream's own `make check` dies in filter_test with SIGILL,
+# on amd64 and arm64 alike, while the same tree passes against glibc, statically linked or not.
+# The ubuntu image merged at / makes this stage's rootfs an Ubuntu userland - bldr adds nothing
+# to it but its own variables, which the scripts reset.
+#
+# --disable-client: nothing on a node runs a BIRD client (see README, "How it works"), and the
+# client is the only thing that links GNU readline and ncurses. --disable-libssh: libssh only
+# serves the RPKI-over-SSH transport, which no config here uses.
+#
+# Static glibc warns that getaddrinfo/getpwnam want NSS backends it cannot carry. Since glibc
+# 2.34 the files and dns backends are built in, and none of those calls is reached anyway:
+# they serve `log ... udp <host>`, RPKI, and -u/-g.
+name: router-bird
+variant: scratch
+shell: /bin/bash
+dependencies:
+  - image: docker.io/library/ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
+steps:
+  # bldr runs a step without network unless told otherwise; this one fetches packages and source.
+  - network: default
+    env:
+      # BIRD's tools/version names a detached checkout `X.Y.Z+detached.<hash>`; PKG_FIXUP makes
+      # it report the release in VERSION instead, as a release tarball would.
+      PKG_FIXUP: "1"
+    build:
+      - |
+        export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+        unset CFLAGS CXXFLAGS LDFLAGS
+        apt-get update --error-on=any
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          build-essential ca-certificates git m4 perl autoconf flex bison
+        git clone --depth 1 --branch "{{ .BUILD_ARG_BIRD_REV }}" https://github.com/CZ-NIC/bird.git /src
+        cd /src
+        commit=$(git rev-parse HEAD)
+        if [ "$commit" != "{{ .BUILD_ARG_BIRD_COMMIT }}" ]; then
+          echo "{{ .BUILD_ARG_BIRD_REV }} is $commit, BIRD_COMMIT pins {{ .BUILD_ARG_BIRD_COMMIT }}"
+          exit 1
+        fi
+        autoreconf
+        # Through configure rather than on make's command line, which would replace the
+        # -pthread and LTO flags configure itself adds to LDFLAGS.
+        ./configure --disable-client --disable-libssh LDFLAGS=-static
+        make -j"$(nproc)"
+        strip bird
+    install:
+      - |
+        mkdir -p /out/licenses
+        cp /src/bird /out/
+        # BIRD's tree states its license in README but carries no copy of the text.
+        cp /usr/share/common-licenses/GPL-2 /out/licenses/bird.LICENSE
+        cp /usr/share/common-licenses/LGPL-2.1 /out/licenses/glibc.LICENSE
+        cp /usr/share/doc/libc6-dev/copyright /out/licenses/glibc.copyright
+        printf 'BIRD %s, built without modification from tag %s (commit %s) of https://github.com/CZ-NIC/bird\n' \
+          "{{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" "{{ .BUILD_ARG_BIRD_REV }}" "{{ .BUILD_ARG_BIRD_COMMIT }}" \
+          > /out/licenses/bird.SOURCE
+        # Statically linked, so LGPL-2.1 asks for the library's source as well.
+        dpkg-query -W -f='${source:Package} ${source:Version}\n' libc6-dev | {
+          read -r package version
+          printf 'glibc, statically linked into bird: Ubuntu source package %s %s, https://launchpad.net/ubuntu/+source/%s/%s\n' \
+            "$package" "$version" "$package" "$version"
+        } > /out/licenses/glibc.SOURCE
+    test:
+      - |
+        export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+        unset CFLAGS CXXFLAGS LDFLAGS
+        cd /src
+        make -j"$(nproc)" check
+        # Nothing to load at startup is what lets it run in a scratch rootfs. Read out of the
+        # ELF rather than through ldd, which on glibc runs the binary through the loader.
+        readelf -d bird > /tmp/dynamic
+        if grep -q NEEDED /tmp/dynamic; then cat /tmp/dynamic; exit 1; fi
+        version=$(./bird --version 2>&1)
+        want="BIRD version {{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}"
+        if [ "$version" != "$want" ]; then echo "got '$version', want '$want'"; exit 1; fi
+finalize:
+  - from: /out
+    to: /

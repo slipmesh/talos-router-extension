@@ -1,6 +1,7 @@
-# Triggered by a `vX.Y.Z[+birdA.B.C]` tag - like ../bird, the release tag *is* the published
-# image tag (`+` swapped for `-`; see cliff.toml's tag_pattern and the Makefile's
-# RELEASE_TAG_SAFE). `make daemons`/`make extension` need ../talos-extensions checked out as a
+# Builds for every pull request and push to main, publishes only for a `vX.Y.Z[+birdA.B.C]` tag: the
+# release tag *is* the published image tag (`+` swapped for `-`; see cliff.toml's tag_pattern
+# and the Makefile's RELEASE_TAG_SAFE). A branch build runs every bldr stage, BIRD's own test
+# suite included, and pushes nothing. `make daemons`/`make extension` need ../talos-extensions checked out as a
 # real sibling directory (Makefile: `check-daemons`), so both repos are checked
 # out side by side under `$GITHUB_WORKSPACE` and every step below runs with `working-directory:
 # talos-router-extension` to make that relative path resolve correctly.
@@ -15,11 +16,18 @@
 # costs several times the wall clock. talos-kernel's arm64 leg used to exceed GitHub Actions' 6h
 # job limit this way for a full kernel build. No docker/setup-qemu-action here: neither job ever
 # builds a foreign platform.
-name: Release extension image
+name: Build extension image
 
 on:
   push:
+    branches: [main]
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  pull_request:
+
+# A newer push to the same pull request makes the running build moot; a tag's build is never cut short.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -80,11 +88,17 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push extension image
+      - name: Build the extension image, and push it for a tag
         working-directory: talos-router-extension
-        run: make extension TARGET_ARCH=${{ matrix.arch }} RELEASE_TAG=${{ github.ref_name }}
+        run: |
+          if [ "${{ github.ref_type }}" = tag ]; then
+            make extension TARGET_ARCH=${{ matrix.arch }} RELEASE_TAG=${{ github.ref_name }}
+          else
+            make extension TARGET_ARCH=${{ matrix.arch }} RELEASE_TAG=v0.0.0-ci PUSH=false
+          fi

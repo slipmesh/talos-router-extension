@@ -1,13 +1,15 @@
 # The `ext-router` extension service
 
-This extension carries three files, all under `rootfs/usr/local/lib/containers/router/`:
+This extension carries three binaries, all under `rootfs/usr/local/lib/containers/router/`:
 
 1. `router` - the extension-service daemon itself (a Rust binary, cross-compiled from the
    sibling repo `../talos-extensions`).
-2. `bird`/`birdc` - a prebuilt, fully static BIRD build, extracted verbatim from
-   `ghcr.io/slipmesh/bird` (`../bird`) - `router` spawns `bird` itself as a child process and
-   talks to its control socket directly (not through the `birdc` binary, which is bundled only
-   for manual `talosctl exec`-style debugging).
+2. `bird` - a fully static BIRD, built here from the upstream tag `BIRD_REV` - `router` spawns
+   it as a child process and talks to its control socket directly. No BIRD client ships: the
+   socket, `/run/bird.ctl` inside the service's mount namespace, is reachable only from a
+   privileged pod with the host PID namespace, as `/proc/<bird pid>/root/run/bird.ctl`, and
+   such a pod can bring its own client.
+3. `bird_exporter` - spawned by `router`, reads the same socket.
 
 `router` renders BIRD's config (OSPFv3 over mesh links, full-mesh iBGP over loopbacks,
 bypass-route blackholing) and reloads it live over BIRD's control socket - a separate mechanism
@@ -153,7 +155,7 @@ cd ../talos-extensions
 cargo build -p router
 # bird/birdc: a locally-installed pair (e.g. Alpine's bird2 package) is enough - router only
 # needs something that speaks BIRD's own control-socket protocol at the path it launches bird
-# with. The statically-linked pair this extension ships can be copied out of a built image
+# with. The static bird this extension ships can be copied out of a built image
 # instead: `docker create` it, then `docker cp <id>:/usr/local/lib/containers/router/bird .`
 sudo mkdir -p /etc/talos-extensions
 sudo cp <a hand-written router.yaml> /etc/talos-extensions/router.yaml

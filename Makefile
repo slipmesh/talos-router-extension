@@ -13,6 +13,8 @@
 
 include versions.env
 
+BIRD_VERSION := $(patsubst v%,%,$(BIRD_REV))
+
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 .DEFAULT_GOAL := help
@@ -28,6 +30,11 @@ ifeq ($(RELEASE_TAG),)
     $(error RELEASE_TAG not set - pass RELEASE_TAG=v0.1.0+bird$(BIRD_VERSION), the git tag this build is released under)
   endif
 endif
+ifneq ($(findstring +bird,$(RELEASE_TAG)),)
+  ifneq ($(lastword $(subst +bird, ,$(RELEASE_TAG))),$(BIRD_VERSION))
+    $(error RELEASE_TAG $(RELEASE_TAG) names a BIRD other than BIRD_REV $(BIRD_REV))
+  endif
+endif
 
 BUILD_DIR      := build
 EXTENSIONS_DIR := $(BUILD_DIR)/extensions
@@ -41,8 +48,8 @@ DAEMON_RUST_TARGET_arm64 := aarch64-unknown-linux-musl
 DAEMON_RUST_TARGET       := $(DAEMON_RUST_TARGET_$(TARGET_ARCH))
 DAEMONS_SHA              := $(shell git -C "$(DAEMONS_DIR)" rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-# Registry tag follows ../bird's own convention: the git release tag *is* the image tag
-# (`+` swapped for `-`, since OCI tags can't contain `+`) - RELEASE_TAG is required, not
+# The git release tag *is* the image tag (`+` swapped for `-`, since OCI tags can't
+# contain `+`) - RELEASE_TAG is required, not
 # derived from versions.env pins, so a rebuild against unchanged pins still needs an
 # explicit new release to publish under. It was derived once, and re-pushing under an
 # unchanged tag has been observed, in ../talos-awg-extension, to not reliably reach a node
@@ -94,8 +101,8 @@ checkout-extensions: | $(BUILD_DIR) ## Fetch siderolabs/extensions at the pinned
 	fi
 	@git -C $(EXTENSIONS_DIR) fetch --quiet --filter=blob:none origin $(UPSTREAM_EXTENSIONS_REF) 2>/dev/null || git -C $(EXTENSIONS_DIR) fetch --quiet origin
 	@git -C $(EXTENSIONS_DIR) checkout --quiet --force --detach $(UPSTREAM_EXTENSIONS_REF)
-	@rm -rf $(EXTENSIONS_DIR)/router
-	@cp -r patches/extensions/router $(EXTENSIONS_DIR)/router
+	@git -C $(EXTENSIONS_DIR) clean --quiet -fd
+	@cp -r patches/extensions/*/ $(EXTENSIONS_DIR)/
 
 .PHONY: check-daemons
 check-daemons: ## Assert ../talos-extensions is checked out at DAEMONS_REF.
@@ -136,17 +143,21 @@ daemons: check-daemons ## Cross-compile the router extension-service daemon (../
 # satisfies the same regex by luck of field order, not by design there either.
 EXT_VERSION := $(DAEMONS_SHA)-$(TALOS_VERSION)-bird$(BIRD_VERSION)
 
-BIRD_ARGS := --build-arg=BIRD_IMAGE=$(BIRD_IMAGE) --build-arg=BIRD_IMAGE_TAG=$(BIRD_IMAGE_TAG)
+BIRD_ARGS := --build-arg=BIRD_REV=$(BIRD_REV) --build-arg=BIRD_COMMIT=$(BIRD_COMMIT) \
+             --build-arg=BIRD_EXPORTER_REV=$(BIRD_EXPORTER_REV)
+
+# PUSH=false builds and runs every stage's tests without publishing - what CI does on a branch.
+PUSH ?= true
 
 .PHONY: extension
-extension: daemons checkout-extensions ## Package bird/birdc + the router daemon into a Talos system extension image (bldr).
+extension: daemons checkout-extensions ## Build BIRD and bird_exporter, package them with the router daemon into a Talos system extension image (bldr).
 	@cp "$(DAEMONS_DIR)/target/$(DAEMON_RUST_TARGET)/release/router" "$(EXTENSIONS_DIR)/router/router-bin"
 	@cp "$(DAEMONS_DIR)/extension-services/router.yaml" "$(EXTENSIONS_DIR)/router/router-service.yaml"
 	@echo "==> building $(EXT_IMAGE) ($(TARGET_ARCH))"
 	@$(MAKE) -C $(EXTENSIONS_DIR) docker-router PLATFORM=linux/$(TARGET_ARCH) \
-	  TARGET_ARGS="--tag=$(EXT_IMAGE) --push=true $(BIRD_ARGS) --build-arg=VERSION=$(EXT_VERSION)"
+	  TARGET_ARGS="--tag=$(EXT_IMAGE) --push=$(PUSH) $(BIRD_ARGS) --build-arg=VERSION=$(EXT_VERSION)"
 	@echo
-	@echo "published: $(EXT_IMAGE)"
+	@echo "built$(if $(filter true,$(PUSH)), and published): $(EXT_IMAGE)"
 	@echo "talos-installer needs this ref to bundle it into an installer"
 
 .PHONY: all

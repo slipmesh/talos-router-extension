@@ -41,20 +41,29 @@ make extension TARGET_ARCH=amd64 RELEASE_TAG=... DAEMONS_DIR=/path/to/talos-exte
 ## How it works
 
 Same mechanism `talos-awg-extension` uses for packaging (siderolabs/extensions'
-`pkg.yaml`/`bldr` pipeline), and the same way it gets its payload: BIRD is not built here
-but pulled in as a published image, `ghcr.io/slipmesh/bird`, which
-[bird](https://github.com/slipmesh/bird) builds statically from upstream. A dependency
-image is an OCI layer merge rather than a second build, so there is one BIRD to keep
-current instead of two, and this repository has no source download of its own to pin.
+`pkg.yaml`/`bldr` pipeline). BIRD and `bird_exporter` are built here, from unmodified
+upstream tags (`BIRD_REV`, `BIRD_EXPORTER_REV`), each in a bldr stage of its own:
 
-The `router` daemon never invokes `birdc` - it implements BIRD's control-socket protocol
-directly (see `talos-extensions`' `router/src/birdc.rs`) - but the binary ships anyway,
-because it is what a human needs when debugging a node.
+- `router-bird` builds a fully static `bird` against glibc on Ubuntu, not on the Talos
+  toolchain: that toolchain is musl, and BIRD 3 does not survive a static musl build -
+  upstream's own `make check` dies in `filter_test` with SIGILL on both architectures, while
+  the same tree passes against glibc. The stage runs that suite, refuses a binary with any
+  `DT_NEEDED` entry (a `scratch` rootfs has nothing to load), and checks `bird --version`
+  against `BIRD_REV`.
+- `router-bird-exporter` builds `bird_exporter` with `CGO_ENABLED=0` and upstream's release
+  flags, with the same static-link and version checks.
+
+No BIRD client ships. `router` and `bird_exporter` both speak BIRD's control-socket protocol
+themselves (see `talos-extensions`' `router/src/birdc.rs`), and the socket is only reachable
+from a privileged debug pod, which can bring any client of its own: the protocol is stable
+across BIRD versions. The client would also be the one thing linking GNU readline and ncurses.
 
 ```text
-versions.env            every pin: Talos version, extensions commit, BIRD version, image
-patches/extensions/router/  overlaid onto a siderolabs/extensions checkout - builds BIRD,
-                             packages it + the router daemon into an extension
+versions.env            every pin: Talos version, extensions commit, BIRD and exporter tags
+patches/extensions/      overlaid onto a siderolabs/extensions checkout:
+  router-bird/            builds BIRD
+  router-bird-exporter/   builds bird_exporter
+  router/                 packages both + the router daemon into the extension
 build/                   (gitignored) the extensions checkout
 ```
 
@@ -75,7 +84,7 @@ make extension TARGET_ARCH=arm64 RELEASE_TAG=v0.1.0+bird2.18
 ## Usage
 
 Every build/publish target needs `TARGET_ARCH=amd64|arm64` and `RELEASE_TAG=<the git tag
-being released>` (no defaults). Like `bird`, `RELEASE_TAG` *is* the published image tag
+being released>` (no defaults). `RELEASE_TAG` *is* the published image tag
 (`+` swapped for `-`, since OCI tags can't contain `+`) - see `cliff.toml`'s `tag_pattern`
 for the exact shape (`vX.Y.Z[+birdA.B.C]`).
 
@@ -83,18 +92,20 @@ for the exact shape (`vX.Y.Z[+birdA.B.C]`).
 make print-config   # resolved pins, arch, image names
 make preflight       # docker/buildx/git/curl/cargo/cargo-zigbuild present
 make daemons            # cross-compile router from ../talos-extensions
-make extension           # build bird + package with the router daemon (this arch)
+make extension           # build bird + bird_exporter, package with the router daemon (this arch)
 make all                   # preflight -> extension
 ```
 
 `make extension` pushes straight to `ghcr.io/slipmesh/talos-router-extension` and prints the tag -
-`talos-installer` needs that ref to bundle it into an installer.
+`talos-installer` needs that ref to bundle it into an installer. `PUSH=false` builds and tests
+without publishing; CI does that for every pull request, and publishes only for a tag.
 
 ## Verifying a build
 
-`patches/extensions/router/pkg.yaml`'s own `test:` step runs siderolabs' own
-`extensions-validator` against the assembled manifest/rootfs - a build that completes has
-already proven the extension is structurally valid.
+Every stage's `test:` step has to pass for the build to complete: BIRD's own test suite and the
+static-link and version checks in `router-bird`/`router-bird-exporter`, and siderolabs'
+`extensions-validator` against the assembled manifest/rootfs in `router` - a build that
+completes has already proven the extension is structurally valid.
 
 ```sh
 docker buildx imagetools inspect <image>   # arch, manifest
@@ -107,10 +118,12 @@ schema and machine-config example.
 
 ## Bumping
 
-**BIRD:** release it in [bird](https://github.com/slipmesh/bird) first, then set
-`BIRD_IMAGE_TAG` to the image that release published and `BIRD_VERSION` to the BIRD inside
-it - the second names this extension's own version and release tag, and nothing checks that
-the two agree. Then `make extension TARGET_ARCH=<arch> RELEASE_TAG=<new release tag>`.
+**BIRD, bird_exporter:** set `BIRD_REV` or `BIRD_EXPORTER_REV` to the new upstream tag, and
+`BIRD_COMMIT` to the commit `BIRD_REV` names (`git ls-remote https://github.com/CZ-NIC/bird.git
+'refs/tags/<tag>^{}'`) - the build refuses a tag that resolves elsewhere. The BIRD version in
+`EXT_VERSION` is derived from `BIRD_REV`, and `make` refuses a `RELEASE_TAG` whose `+bird`
+suffix names a different one. The ubuntu and golang build images are pinned by digest in the two
+stages' `pkg.yaml`.
 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.
@@ -119,3 +132,21 @@ resolve.
 `make check-daemons` refuses to build unless the sibling checkout sits at it, and
 `DAEMONS_SHA` records the commit into `EXT_VERSION`. To pick up new daemon work, tag
 `talos-extensions` and bump `DAEMONS_REF`.
+
+## Licenses
+
+The extension distributes BIRD (GPL-2.0-or-later), statically linked glibc (LGPL-2.1-or-later),
+`bird_exporter` (MIT) and the Go modules compiled into it, so their license texts ship with it,
+under `/usr/local/share/licenses/router/`. Each comes from the build itself: GPL-2 and LGPL-2.1
+from the Ubuntu build image's `/usr/share/common-licenses/` - BIRD's own tree states its license
+in `README` but carries no copy of the text - glibc's notice from the `libc6-dev` package, and
+the Go texts from the Go toolchain and the module cache. A module without a license file fails
+the build.
+
+BIRD is built from its upstream tag without modification, so there are no changed files to
+mark. The corresponding source is that tag, `BIRD_REV` at commit `BIRD_COMMIT`, at
+`https://github.com/CZ-NIC/bird`; `bird.SOURCE` beside the license texts says the same inside the
+image. Statically linked glibc owes its source too: `glibc.SOURCE` names the Ubuntu source
+package and version the build linked. This repository's own
+code is MIT or Apache-2.0; `router` runs `bird` as a separate process and talks to it over a
+socket, so it is not linked with it.
