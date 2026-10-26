@@ -24,6 +24,11 @@ on:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   pull_request:
 
+# A newer push to the same pull request makes the running build moot; a tag's build is never cut short.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
   packages: write
