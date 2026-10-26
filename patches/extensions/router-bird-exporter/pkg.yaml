@@ -6,7 +6,7 @@ name: router-bird-exporter
 variant: scratch
 shell: /bin/bash
 dependencies:
-  - image: docker.io/library/golang:1.27.2-trixie
+  - image: docker.io/library/golang:1.27.2-trixie@sha256:47667934874913a449b96faa7ef4777fa285d9ec29126ee80ed61c45b7cccf0e
 steps:
   # bldr runs a step without network unless told otherwise; this one fetches the modules.
   - network: default
@@ -25,7 +25,9 @@ steps:
         cp /go/bin/bird_exporter /out/
         cp /usr/local/go/LICENSE /out/licenses/go.LICENSE
         # Every module linked into the binary, the exporter itself included (`mod` and `dep`
-        # lines). The module cache stores upper-case letters as `!` + lower case.
+        # lines). The module cache stores upper-case letters as `!` + lower case, and modules
+        # spell their license file in any case (`License`, `license.md`).
+        shopt -s nocaseglob
         go version -m /out/bird_exporter | awk '$1 == "mod" || $1 == "dep" { print $2 "@" $3 }' |
           while read -r module; do
             dir="/go/pkg/mod/$(sed 's/[A-Z]/!\L&/g' <<<"$module")"

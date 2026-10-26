@@ -118,8 +118,12 @@ schema and machine-config example.
 
 ## Bumping
 
-**BIRD, bird_exporter:** set `BIRD_REV` or `BIRD_EXPORTER_REV` to the new upstream tag. The
-BIRD version in `EXT_VERSION` is derived from `BIRD_REV`.
+**BIRD, bird_exporter:** set `BIRD_REV` or `BIRD_EXPORTER_REV` to the new upstream tag, and
+`BIRD_COMMIT` to the commit `BIRD_REV` names (`git ls-remote https://github.com/CZ-NIC/bird.git
+'refs/tags/<tag>^{}'`) - the build refuses a tag that resolves elsewhere. The BIRD version in
+`EXT_VERSION` is derived from `BIRD_REV`, and `make` refuses a `RELEASE_TAG` whose `+bird`
+suffix names a different one. The ubuntu and golang build images are pinned by digest in the two
+stages' `pkg.yaml`.
 
 **siderolabs/extensions:** bump `UPSTREAM_EXTENSIONS_REF` freely; it only needs to
 resolve.
@@ -140,7 +144,9 @@ the Go texts from the Go toolchain and the module cache. A module without a lice
 the build.
 
 BIRD is built from its upstream tag without modification, so there are no changed files to
-mark. The corresponding source is that tag, `BIRD_REV`, at `https://github.com/CZ-NIC/bird`;
-`bird.SOURCE` beside the license texts says the same inside the image. This repository's own
+mark. The corresponding source is that tag, `BIRD_REV` at commit `BIRD_COMMIT`, at
+`https://github.com/CZ-NIC/bird`; `bird.SOURCE` beside the license texts says the same inside the
+image. Statically linked glibc owes its source too: `glibc.SOURCE` names the Ubuntu source
+package and version the build linked. This repository's own
 code is MIT or Apache-2.0; `router` runs `bird` as a separate process and talks to it over a
 socket, so it is not linked with it.

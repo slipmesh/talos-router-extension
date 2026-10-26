@@ -17,7 +17,7 @@ name: router-bird
 variant: scratch
 shell: /bin/bash
 dependencies:
-  - image: docker.io/library/ubuntu:26.04
+  - image: docker.io/library/ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944
 steps:
   # bldr runs a step without network unless told otherwise; this one fetches packages and source.
   - network: default
@@ -34,9 +34,16 @@ steps:
           build-essential ca-certificates git m4 perl autoconf flex bison
         git clone --depth 1 --branch "{{ .BUILD_ARG_BIRD_REV }}" https://github.com/CZ-NIC/bird.git /src
         cd /src
+        commit=$(git rev-parse HEAD)
+        if [ "$commit" != "{{ .BUILD_ARG_BIRD_COMMIT }}" ]; then
+          echo "{{ .BUILD_ARG_BIRD_REV }} is $commit, BIRD_COMMIT pins {{ .BUILD_ARG_BIRD_COMMIT }}"
+          exit 1
+        fi
         autoreconf
-        ./configure --disable-client --disable-libssh
-        make LDFLAGS=-static -j"$(nproc)"
+        # Through configure rather than on make's command line, which would replace the
+        # -pthread and LTO flags configure itself adds to LDFLAGS.
+        ./configure --disable-client --disable-libssh LDFLAGS=-static
+        make -j"$(nproc)"
         strip bird
     install:
       - |
@@ -46,15 +53,21 @@ steps:
         cp /usr/share/common-licenses/GPL-2 /out/licenses/bird.LICENSE
         cp /usr/share/common-licenses/LGPL-2.1 /out/licenses/glibc.LICENSE
         cp /usr/share/doc/libc6-dev/copyright /out/licenses/glibc.copyright
-        printf 'BIRD %s, built without modification from tag %s of https://github.com/CZ-NIC/bird\n' \
-          "{{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" "{{ .BUILD_ARG_BIRD_REV }}" \
+        printf 'BIRD %s, built without modification from tag %s (commit %s) of https://github.com/CZ-NIC/bird\n' \
+          "{{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" "{{ .BUILD_ARG_BIRD_REV }}" "{{ .BUILD_ARG_BIRD_COMMIT }}" \
           > /out/licenses/bird.SOURCE
+        # Statically linked, so LGPL-2.1 asks for the library's source as well.
+        dpkg-query -W -f='${source:Package} ${source:Version}\n' libc6-dev | {
+          read -r package version
+          printf 'glibc, statically linked into bird: Ubuntu source package %s %s, https://launchpad.net/ubuntu/+source/%s/%s\n' \
+            "$package" "$version" "$package" "$version"
+        } > /out/licenses/glibc.SOURCE
     test:
       - |
         export PATH=/usr/sbin:/usr/bin:/sbin:/bin
         unset CFLAGS CXXFLAGS LDFLAGS
         cd /src
-        make LDFLAGS=-static -j"$(nproc)" check
+        make -j"$(nproc)" check
         # Nothing to load at startup is what lets it run in a scratch rootfs. Read out of the
         # ELF rather than through ldd, which on glibc runs the binary through the loader.
         readelf -d bird > /tmp/dynamic
