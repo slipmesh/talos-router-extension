@@ -8,7 +8,9 @@ shell: /bin/bash
 dependencies:
   - image: docker.io/library/golang:1.27.2-trixie
 steps:
-  - build:
+  # bldr runs a step without network unless told otherwise; this one fetches the modules.
+  - network: default
+    build:
       - |
         export PATH=/usr/local/go/bin:/usr/sbin:/usr/bin:/sbin:/bin GOPATH=/go GOCACHE=/tmp/go-cache
         unset CFLAGS CXXFLAGS LDFLAGS

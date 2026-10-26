@@ -19,11 +19,13 @@ shell: /bin/bash
 dependencies:
   - image: docker.io/library/ubuntu:26.04
 steps:
-  - build:
+  # bldr runs a step without network unless told otherwise; this one fetches packages and source.
+  - network: default
+    build:
       - |
         export PATH=/usr/sbin:/usr/bin:/sbin:/bin
         unset CFLAGS CXXFLAGS LDFLAGS
-        apt-get update
+        apt-get update --error-on=any
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
           build-essential ca-certificates git m4 perl autoconf flex bison
         git clone --depth 1 --branch "{{ .BUILD_ARG_BIRD_REV }}" https://github.com/CZ-NIC/bird.git /src
