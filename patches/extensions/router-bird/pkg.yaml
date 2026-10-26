@@ -21,6 +21,10 @@ dependencies:
 steps:
   # bldr runs a step without network unless told otherwise; this one fetches packages and source.
   - network: default
+    env:
+      # BIRD's tools/version names a detached checkout `X.Y.Z+detached.<hash>`; PKG_FIXUP makes
+      # it report the release in VERSION instead, as a release tarball would.
+      PKG_FIXUP: "1"
     build:
       - |
         export PATH=/usr/sbin:/usr/bin:/sbin:/bin
@@ -56,7 +60,8 @@ steps:
         readelf -d bird > /tmp/dynamic
         if grep -q NEEDED /tmp/dynamic; then cat /tmp/dynamic; exit 1; fi
         version=$(./bird --version 2>&1)
-        [ "$version" = "BIRD version {{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}" ]
+        want="BIRD version {{ .BUILD_ARG_BIRD_REV | trimPrefix "v" }}"
+        if [ "$version" != "$want" ]; then echo "got '$version', want '$want'"; exit 1; fi
 finalize:
   - from: /out
     to: /

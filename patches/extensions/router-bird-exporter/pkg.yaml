@@ -44,7 +44,8 @@ steps:
         readelf -d /out/bird_exporter > /tmp/dynamic
         if grep -q NEEDED /tmp/dynamic; then cat /tmp/dynamic; exit 1; fi
         version=$(/out/bird_exporter -version)
-        grep -qx "Version: {{ .BUILD_ARG_BIRD_EXPORTER_REV | trimPrefix "v" }}" <<<"$version"
+        want="Version: {{ .BUILD_ARG_BIRD_EXPORTER_REV | trimPrefix "v" }}"
+        if ! grep -qxF "$want" <<<"$version"; then echo "got '$version', want '$want'"; exit 1; fi
 finalize:
   - from: /out
     to: /
